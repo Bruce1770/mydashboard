@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>極速記帳與生活儀表板</title>
+  <title>極速記帳與動態儀表板</title>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -16,7 +16,6 @@
       box-sizing: border-box;
     }
     
-    /* 儀表板區塊 */
     .dashboard {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -28,13 +27,12 @@
       border-radius: 12px;
       padding: 12px;
       box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-      text-decoration: none; /* 讓 <a> 標籤不要有底線 */
+      text-decoration: none;
       color: inherit;
       display: flex;
       flex-direction: column;
       justify-content: center;
     }
-    .card:active { background: #f8f9fa; }
     .card-title {
       font-size: 0.8rem;
       color: #888;
@@ -42,7 +40,6 @@
       font-weight: bold;
     }
     
-    /* 交通按鈕樣式 */
     .transit-btn {
       display: block;
       background: #eef2f5;
@@ -58,7 +55,6 @@
     .transit-btn:last-child { margin-bottom: 0; }
     .transit-btn:active { background: #dfe6e9; }
 
-    /* 記帳區塊 */
     #display {
       font-size: 2.2rem;
       font-weight: bold;
@@ -69,7 +65,6 @@
       color: #333;
       border-bottom: 1px solid #eee;
     }
-    /* 新增：備註輸入框 */
     .note-input {
       width: 100%;
       box-sizing: border-box;
@@ -148,28 +143,23 @@
 </head>
 <body>
 
-  <!-- 出門儀表板 -->
   <div class="dashboard">
-    <!-- 天氣卡片：點擊直接開啟氣象署蘆洲區網頁 -->
-    <a href="https://www.cwa.gov.tw/V8/C/W/Town/Town.html?TID=6501400" target="_blank" class="card">
-      <div class="card-title">📍 蘆洲天氣 (點擊看詳情)</div>
-      <div id="cwa-weather" style="font-size: 1.4rem; font-weight: bold; color: #2c3e50;">載入中...</div>
-      <div id="cwa-desc" style="font-size: 0.85rem; color: #e74c3c; margin-top: 5px; font-weight: bold;"></div>
-    </a>
+    <!-- 根據 GPS 動態更新的天氣卡片 -->
+    <div class="card" onclick="getLocationAndWeather()" style="cursor:pointer;">
+      <div class="card-title" id="weather-title">📍 定位中... (點擊重整)</div>
+      <div id="weather-temp" style="font-size: 1.6rem; font-weight: bold; color: #2c3e50;">--°C</div>
+      <div id="weather-desc" style="font-size: 0.85rem; color: #7f8c8d; margin-top: 5px; font-weight: bold;">等待權限中...</div>
+    </div>
     
-    <!-- 交通卡片：直接連結導航與動態 -->
+    <!-- 交通卡片 -->
     <div class="card">
       <div class="card-title">🚉 交通與距離估算</div>
-      <!-- 利用 Google Maps Direction API 規劃大眾運輸 -->
       <a href="https://www.google.com/maps/dir/?api=1&destination=捷運蘆洲站&travelmode=transit" target="_blank" class="transit-btn">捷運蘆洲站 (導航)</a>
-      <!-- 連結至大台北公車網頁看即時動態 -->
       <a href="https://pda.5284.gov.taipei/MQS/businfo1.jsp?routename=225" target="_blank" class="transit-btn">225 公車 (看班次)</a>
     </div>
   </div>
 
-  <!-- 記帳與備註區塊 -->
   <div id="display">0</div>
-  <!-- 新增：備註輸入框 -->
   <input type="text" id="expense-note" class="note-input" placeholder="備註：吃了什麼？ (選填)">
 
   <div class="numpad">
@@ -200,47 +190,90 @@
 
   <script>
     // ==========================================
-    // 1. 中央氣象署 (CWA) API 串接
+    // 1. 動態 GPS 定位與氣象抓取
     // ==========================================
-    async function fetchCWAWeather() {
-      // ⚠️ 如果你要抓取真實資料，請去氣象署開放資料平台申請一組免費的授權碼填入下方
-      const CWA_API_KEY = "請填入你的氣象署授權碼"; 
+    function getLocationAndWeather() {
+      const titleEl = document.getElementById("weather-title");
+      const tempEl = document.getElementById("weather-temp");
+      const descEl = document.getElementById("weather-desc");
       
-      // 這是新北市未來36小時天氣預報的 API 網址，並篩選出蘆洲區
-      const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-D0047-071?Authorization=${CWA_API_KEY}&locationName=蘆洲區&elementName=T,PoP12h,Wx`;
+      titleEl.innerText = "📍 抓取座標中...";
 
-      try {
-        if (CWA_API_KEY === "請填入你的氣象署授權碼") {
-          document.getElementById("cwa-weather").innerText = "點我查看氣象署";
-          document.getElementById("cwa-desc").innerText = "填入 API Key 即可顯示即時資料";
-          return;
-        }
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            
+            // 步驟 A：用經緯度反查行政區名稱 (BigDataCloud 免費 API)
+            try {
+              const geoUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=zh`;
+              const geoRes = await fetch(geoUrl);
+              const geoData = await geoRes.json();
+              const areaName = geoData.locality || geoData.city || "目前位置";
+              titleEl.innerText = `📍 ${areaName}`;
+            } catch (e) {
+              titleEl.innerText = "📍 目前位置";
+            }
+            
+            // 步驟 B：用經緯度查詢天氣 (Open-Meteo)
+            try {
+              const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code&timezone=Asia%2FTaipei`;
+              const weatherRes = await fetch(weatherUrl);
+              const weatherData = await weatherRes.json();
+              
+              const temp = weatherData.current.temperature_2m;
+              const precip = weatherData.current.precipitation;
+              const code = weatherData.current.weather_code;
+              
+              let icon = "☁️";
+              if (code <= 1) icon = "☀️";
+              else if (code <= 3) icon = "⛅";
+              else if (code >= 51) icon = "🌧️";
 
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        // 解析氣象署層層包裝的 JSON 資料
-        const luzhouData = data.records.locations[0].location[0].weatherElement;
-        const temp = luzhouData.find(e => e.elementName === 'T').time[0].elementValue[0].value;
-        const pop = luzhouData.find(e => e.elementName === 'PoP12h').time[0].elementValue[0].value; // 降雨機率
-        
-        document.getElementById("cwa-weather").innerText = `${temp}°C (降雨機率 ${pop}%)`;
-        
-        if (parseInt(pop) >= 30) {
-          document.getElementById("cwa-desc").innerText = "⚠️ 外面有雨，記得帶傘！";
-        } else {
-          document.getElementById("cwa-desc").innerText = "🌂 目前降雨機率低";
-          document.getElementById("cwa-desc").style.color = "#7f8c8d";
-        }
-      } catch (error) {
-        document.getElementById("cwa-weather").innerText = "點我查看氣象署";
-        console.error("CWA天氣抓取失敗", error);
+              tempEl.innerText = `${temp}°C ${icon}`;
+              
+              if (precip > 0 || code >= 51) {
+                descEl.innerText = "⚠️ 外面有雨，記得帶傘！";
+                descEl.style.color = "#e74c3c";
+              } else {
+                descEl.innerText = "🌂 目前無雨";
+                descEl.style.color = "#7f8c8d";
+              }
+            } catch (error) {
+              tempEl.innerText = "--°C";
+              descEl.innerText = "天氣抓取失敗";
+            }
+          },
+          (error) => {
+            // 如果你按了拒絕，或定位失敗，就預設使用蘆洲區的座標 (25.08, 121.47)
+            console.warn("無法取得定位，切換至預設座標", error);
+            titleEl.innerText = "📍 蘆洲區 (預設)";
+            fetchFallbackWeather(25.08, 121.47);
+          },
+          { timeout: 10000 } // 設定 10 秒超時
+        );
+      } else {
+        titleEl.innerText = "📍 瀏覽器不支援";
       }
     }
-    fetchCWAWeather();
+
+    // 定位失敗時的備用函數 (抓取蘆洲天氣)
+    async function fetchFallbackWeather(lat, lon) {
+      try {
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,precipitation,weather_code&timezone=Asia%2FTaipei`;
+        const weatherRes = await fetch(weatherUrl);
+        const weatherData = await weatherRes.json();
+        document.getElementById("weather-temp").innerText = `${weatherData.current.temperature_2m}°C`;
+        document.getElementById("weather-desc").innerText = "定位未開啟";
+      } catch (e) {}
+    }
+
+    // 網頁載入時，立刻啟動定位與天氣抓取
+    getLocationAndWeather();
 
     // ==========================================
-    // 2. 記帳功能 (加入備註欄)
+    // 2. 記帳功能 (含備註)
     // ==========================================
     let currentAmount = "0";
     const displayEl = document.getElementById("display");
@@ -256,7 +289,7 @@
     }
     function clearNum() {
       currentAmount = "0";
-      noteEl.value = ""; // 送出後同時清空備註欄
+      noteEl.value = ""; 
       updateDisplay();
     }
     function backspace() {
@@ -264,8 +297,8 @@
       updateDisplay();
     }
 
-    // ⚠️ 記得把這裡替換成你剛剛成功串接的 Google Apps Script 網址！
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbw8GCBABQzIiivStIYL1WKwzJkCy7SqJj5CCgvlv5ENLBmTDq2TP-amTR_OvtMspQsPOA/exec";
+    // ⚠️ 記得把這裡替換成你的 Google Apps Script 網址！
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwvjxpeWyOx26v1Zh9EzrLfkBhFzfKqJa6rcIaT-TTWRdi5a2yz4CDWUwo1QHWp7BwBaw/exec";
 
     function submitData(category) {
       if (currentAmount === "0") return;
@@ -273,16 +306,15 @@
       const now = new Date();
       const fullTimeString = now.toLocaleString('zh-TW');
       const displayTimeString = now.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
-      const currentNote = noteEl.value.trim(); // 取得備註文字
+      const currentNote = noteEl.value.trim();
 
       const record = {
         time: fullTimeString,
         category: category,
         amount: parseInt(currentAmount),
-        note: currentNote // 將備註加入傳送物件
+        note: currentNote
       };
 
-      // 更新畫面紀錄
       records.unshift({
         time: displayTimeString,
         category: category,
@@ -293,7 +325,6 @@
       renderHistory();
       clearNum();
 
-      // 傳送至 Google Sheets
       fetch(GAS_URL, {
         method: "POST",
         mode: "no-cors",
@@ -310,9 +341,7 @@
       const recentRecords = records.slice(0, 10);
       let html = "";
       recentRecords.forEach(record => {
-        // 如果有填寫備註，就額外渲染一行文字
         const noteHtml = record.note ? `<div class="record-note">📝 ${record.note}</div>` : '';
-        
         html += `
           <div class="record-item">
             <div class="record-top">
