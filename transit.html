@@ -25,138 +25,165 @@
       background: #fff; border-radius: 12px; padding: 15px;
       margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
     }
-    .section-title { font-size: 1rem; color: #333; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 8px;}
+    .section-title { font-size: 1.1rem; color: #333; font-weight: bold; margin-bottom: 12px; border-bottom: 2px solid #eee; padding-bottom: 8px;}
     
-    /* 捷運按鈕 */
-    .mrt-btn {
-      display: block; background: #74b9ff; color: #fff;
-      text-align: center; padding: 15px; border-radius: 8px;
-      font-size: 1.1rem; font-weight: bold; text-decoration: none;
-      box-shadow: 0 4px 6px rgba(116, 185, 255, 0.3);
+    /* 站點資訊卡片 */
+    .station-info { margin-bottom: 15px; }
+    .station-name-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 10px;
     }
-    .mrt-btn:active { background: #0984e3; }
-
-    /* 公車輸入區 */
-    .bus-input-group { display: flex; gap: 10px; margin-bottom: 15px; }
-    .bus-input {
-      flex-grow: 1; padding: 10px; border: 1px solid #ccc;
-      border-radius: 8px; font-size: 1rem; outline: none;
-    }
-    .bus-add-btn {
-      background: #55efc4; border: none; padding: 10px 15px;
-      border-radius: 8px; font-weight: bold; color: #2d3436; cursor: pointer;
-    }
+    .station-name { font-size: 1.3rem; font-weight: bold; color: #2c3e50; }
+    .station-distance { font-size: 0.9rem; color: #e67e22; font-weight: bold; background: #fff3e0; padding: 3px 8px; border-radius: 12px; }
     
-    /* 公車清單 */
-    .bus-list { display: flex; flex-direction: column; gap: 10px; }
-    .bus-item {
+    /* 到站時間列表 */
+    .eta-list { display: flex; flex-direction: column; gap: 8px; }
+    .eta-item {
       display: flex; justify-content: space-between; align-items: center;
       background: #f8f9fa; padding: 10px 15px; border-radius: 8px;
-      text-decoration: none; color: #2c3e50; font-weight: bold;
     }
-    .bus-item:active { background: #e9ecef; }
-    .delete-btn {
-      background: #ff7675; color: white; border: none;
-      border-radius: 6px; padding: 5px 10px; font-size: 0.8rem; cursor: pointer;
+    .eta-direction { font-size: 0.95rem; color: #555; font-weight: bold; }
+    .eta-time { font-size: 1.1rem; font-weight: bold; color: #27ae60; }
+    .eta-time.soon { color: #e74c3c; } /* 即將進站變紅色 */
+
+    .refresh-btn {
+      width: 100%; background: #eef2f5; color: #2c3e50; border: none;
+      padding: 12px; border-radius: 8px; font-size: 1rem; font-weight: bold;
+      cursor: pointer; margin-top: 10px;
     }
+    .refresh-btn:active { background: #dfe6e9; }
   </style>
 </head>
 <body>
 
   <div class="header">
-    <a href="index.html" class="back-btn">⬅ 返回記帳</a>
+    <a href="index.html" class="back-btn">⬅ 返回首頁</a>
     <h2 style="margin:0; font-size: 1.2rem; color: #2c3e50;">交通雷達</h2>
   </div>
 
   <!-- 捷運區塊 -->
   <div class="section">
-    <div class="section-title">🚉 尋找捷運站</div>
-    <p style="font-size: 0.85rem; color: #7f8c8d; margin-top: 0;">無論在哪裡，點擊自動導航至距離最近的捷運站。</p>
-    <a href="#" id="mrt-link" class="mrt-btn" onclick="findNearestMRT(event)">📍 導航至最近的捷運站</a>
+    <div class="section-title">🚉 最近的捷運站</div>
+    <div id="mrt-content">
+      <div style="text-align: center; color: #888; padding: 20px 0;">📍 定位中...</div>
+    </div>
+    <button class="refresh-btn" onclick="locateAndRender()">🔄 重新定位與整理</button>
   </div>
 
   <!-- 公車區塊 -->
   <div class="section">
-    <div class="section-title">🚌 我的常用公車</div>
-    <div class="bus-input-group">
-      <input type="text" id="bus-input" class="bus-input" placeholder="輸入公車號碼 (例: 225)">
-      <button class="bus-add-btn" onclick="addBus()">新增</button>
-    </div>
-    <div id="bus-list" class="bus-list">
-      <!-- 公車按鈕會透過 JS 產生在這裡 -->
+    <div class="section-title">🚌 附近常用公車站牌</div>
+    <div id="bus-content">
+      <!-- 模擬資料會塞入這裡 -->
     </div>
   </div>
 
   <script>
-    // 1. 動態尋找最近捷運站
-    function findNearestMRT(e) {
-      e.preventDefault(); // 阻止原本的超連結跳轉
-      const btn = document.getElementById("mrt-link");
-      btn.innerText = "定位中...";
+    // 內建中和新蘆線（蘆洲段）的真實經緯度
+    const mrtStations = [
+      { name: "蘆洲站", lat: 25.0921, lon: 121.4645 },
+      { name: "三民高中站", lat: 25.0853, lon: 121.4735 },
+      { name: "徐匯中學站", lat: 25.0809, lon: 121.4797 },
+      { name: "三和國中站", lat: 25.0766, lon: 121.4863 }
+    ];
+
+    // 常用公車清單 (模擬資料)
+    const favoriteBuses = [
+      { route: "225", stop: "鷺江國小(三民路)", lat: 25.0850, lon: 121.4720, dir: "往民生社區" },
+      { route: "橘19", stop: "捷運三民高中站", lat: 25.0855, lon: 121.4738, dir: "往五股" }
+    ];
+
+    // 核心算式：Haversine formula 計算兩點經緯度的精準距離 (公尺)
+    function getDistance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // 地球半徑 (公尺)
+      const p1 = lat1 * Math.PI/180;
+      const p2 = lat2 * Math.PI/180;
+      const dp = (lat2-lat1) * Math.PI/180;
+      const dl = (lon2-lon1) * Math.PI/180;
+      const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return Math.round(R * c); 
+    }
+
+    // 產生模擬的倒數時間 (回傳 HTML 字串)
+    function generateMockETA() {
+      const min = Math.floor(Math.random() * 8); // 隨機 0~7 分鐘
+      if (min === 0) return `<span class="eta-time soon">進站中</span>`;
+      if (min <= 2) return `<span class="eta-time soon">${min} 分</span>`;
+      return `<span class="eta-time">${min} 分</span>`;
+    }
+
+    function locateAndRender() {
+      const mrtEl = document.getElementById("mrt-content");
+      const busEl = document.getElementById("bus-content");
+      
+      mrtEl.innerHTML = `<div style="text-align: center; color: #888; padding: 20px 0;">📍 計算距離中...</div>`;
 
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            const lat = position.coords.latitude;
-            const lon = position.coords.longitude;
-            // 讓 Google Maps 直接搜尋當前座標附近的「捷運站」
-            const googleMapsUrl = `https://www.google.com/maps/search/捷運站/@${lat},${lon},16z`;
-            btn.innerText = "📍 導航至最近的捷運站";
-            window.open(googleMapsUrl, "_blank");
-          },
-          () => {
-            alert("無法取得定位，將開啟一般地圖搜尋");
-            btn.innerText = "📍 導航至最近的捷運站";
-            window.open("https://www.google.com/maps/search/捷運站", "_blank");
-          },
-          { timeout: 5000 }
-        );
-      } else {
-        alert("您的瀏覽器不支援定位功能");
+        navigator.geolocation.getCurrentPosition((position) => {
+          const myLat = position.coords.latitude;
+          const myLon = position.coords.longitude;
+
+          // ==============================
+          // 1. 處理捷運邏輯
+          // ==============================
+          // 計算每個捷運站與我的距離，並根據距離排序
+          mrtStations.forEach(st => st.distance = getDistance(myLat, myLon, st.lat, st.lon));
+          mrtStations.sort((a, b) => a.distance - b.distance);
+          
+          const nearestMRT = mrtStations[0]; // 距離最近的站
+
+          mrtEl.innerHTML = `
+            <div class="station-info">
+              <div class="station-name-row">
+                <div class="station-name">${nearestMRT.name}</div>
+                <div class="station-distance">約 ${nearestMRT.distance} 公尺</div>
+              </div>
+              <div class="eta-list">
+                <div class="eta-item">
+                  <span class="eta-direction">往 蘆洲</span>
+                  ${generateMockETA()}
+                </div>
+                <div class="eta-item">
+                  <span class="eta-direction">往 南勢角</span>
+                  ${generateMockETA()}
+                </div>
+              </div>
+            </div>
+          `;
+
+          // ==============================
+          // 2. 處理公車邏輯
+          // ==============================
+          let busHtml = "";
+          favoriteBuses.forEach(bus => {
+            const dist = getDistance(myLat, myLon, bus.lat, bus.lon);
+            busHtml += `
+              <div class="station-info" style="margin-bottom: 20px;">
+                <div class="station-name-row" style="margin-bottom: 5px;">
+                  <div class="station-name" style="font-size: 1.1rem;">🚌 ${bus.route}</div>
+                  <div class="station-distance" style="background:#e8f4f8; color:#2980b9;">${dist} 公尺</div>
+                </div>
+                <div style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 8px;">站牌：${bus.stop}</div>
+                <div class="eta-list">
+                  <div class="eta-item">
+                    <span class="eta-direction">${bus.dir}</span>
+                    ${generateMockETA()}
+                  </div>
+                </div>
+              </div>
+            `;
+          });
+          busEl.innerHTML = busHtml;
+
+        }, () => {
+          mrtEl.innerHTML = `<div style="color: #e74c3c; font-weight: bold;">無法取得定位權限</div>`;
+        });
       }
     }
 
-    // 2. 自訂公車清單邏輯
-    let buses = JSON.parse(localStorage.getItem("my_buses")) || ["225", "忠孝幹線"];
-    const busListEl = document.getElementById("bus-list");
-    const busInputEl = document.getElementById("bus-input");
-
-    function renderBuses() {
-      busListEl.innerHTML = "";
-      buses.forEach((bus, index) => {
-        // 大台北公車動態的查詢網址
-        const busUrl = `https://pda.5284.gov.taipei/MQS/businfo1.jsp?routename=${encodeURIComponent(bus)}`;
-        
-        busListEl.innerHTML += `
-          <div class="bus-item">
-            <a href="${busUrl}" target="_blank" style="text-decoration:none; color:inherit; flex-grow:1;">
-              🚌 ${bus}
-            </a>
-            <button class="delete-btn" onclick="deleteBus(${index})">刪除</button>
-          </div>
-        `;
-      });
-    }
-
-    function addBus() {
-      const newBus = busInputEl.value.trim();
-      if (newBus === "") return;
-      if (!buses.includes(newBus)) {
-        buses.push(newBus);
-        localStorage.setItem("my_buses", JSON.stringify(buses));
-        renderBuses();
-      }
-      busInputEl.value = "";
-    }
-
-    function deleteBus(index) {
-      buses.splice(index, 1);
-      localStorage.setItem("my_buses", JSON.stringify(buses));
-      renderBuses();
-    }
-
-    // 初始載入畫面
-    renderBuses();
+    // 網頁載入時啟動
+    locateAndRender();
   </script>
 </body>
 </html>
