@@ -144,19 +144,20 @@
 <body>
 
   <div class="dashboard">
-    <!-- 根據 GPS 動態更新的天氣卡片 -->
+    <!-- 原本的天氣卡片保留不動 -->
     <div class="card" onclick="getLocationAndWeather()" style="cursor:pointer;">
       <div class="card-title" id="weather-title">📍 定位中... (點擊重整)</div>
       <div id="weather-temp" style="font-size: 1.6rem; font-weight: bold; color: #2c3e50;">--°C</div>
       <div id="weather-desc" style="font-size: 0.85rem; color: #7f8c8d; margin-top: 5px; font-weight: bold;">等待權限中...</div>
     </div>
     
-    <!-- 交通卡片 -->
-    <div class="card">
-      <div class="card-title">🚉 交通與距離估算</div>
-      <a href="https://www.google.com/maps/dir/?api=1&destination=捷運蘆洲站&travelmode=transit" target="_blank" class="transit-btn">捷運蘆洲站 (導航)</a>
-      <a href="https://pda.5284.gov.taipei/MQS/businfo1.jsp?routename=225" target="_blank" class="transit-btn">225 公車 (看班次)</a>
-    </div>
+    <!-- ⚠️ 把這裡改成通往 transit.html 的新入口 -->
+    <a href="transit.html" class="card" style="background: #eef2f5; align-items: center; text-decoration: none;">
+      <div class="card-title">🚉 捷運與公車</div>
+      <div style="font-size: 1rem; font-weight: bold; color: #2c3e50; margin-top: 5px;">
+        開啟交通雷達 ➔
+      </div>
+    </a>
   </div>
 
   <div id="display">0</div>

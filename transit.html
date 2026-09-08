@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>交通動態雷達</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0; padding: 15px; background-color: #f4f7f6;
+      box-sizing: border-box;
+    }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 20px;
+    }
+    .back-btn {
+      background: #fff; border: none; padding: 8px 15px;
+      border-radius: 8px; font-weight: bold; color: #555;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; text-decoration: none;
+    }
+    .back-btn:active { background: #e0e0e0; }
+    
+    .section {
+      background: #fff; border-radius: 12px; padding: 15px;
+      margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    .section-title { font-size: 1rem; color: #333; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 8px;}
+    
+    /* 捷運按鈕 */
+    .mrt-btn {
+      display: block; background: #74b9ff; color: #fff;
+      text-align: center; padding: 15px; border-radius: 8px;
+      font-size: 1.1rem; font-weight: bold; text-decoration: none;
+      box-shadow: 0 4px 6px rgba(116, 185, 255, 0.3);
+    }
+    .mrt-btn:active { background: #0984e3; }
+
+    /* 公車輸入區 */
+    .bus-input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+    .bus-input {
+      flex-grow: 1; padding: 10px; border: 1px solid #ccc;
+      border-radius: 8px; font-size: 1rem; outline: none;
+    }
+    .bus-add-btn {
+      background: #55efc4; border: none; padding: 10px 15px;
+      border-radius: 8px; font-weight: bold; color: #2d3436; cursor: pointer;
+    }
+    
+    /* 公車清單 */
+    .bus-list { display: flex; flex-direction: column; gap: 10px; }
+    .bus-item {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #f8f9fa; padding: 10px 15px; border-radius: 8px;
+      text-decoration: none; color: #2c3e50; font-weight: bold;
+    }
+    .bus-item:active { background: #e9ecef; }
+    .delete-btn {
+      background: #ff7675; color: white; border: none;
+      border-radius: 6px; padding: 5px 10px; font-size: 0.8rem; cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <a href="index.html" class="back-btn">⬅ 返回記帳</a>
+    <h2 style="margin:0; font-size: 1.2rem; color: #2c3e50;">交通雷達</h2>
+  </div>
+
+  <!-- 捷運區塊 -->
+  <div class="section">
+    <div class="section-title">🚉 尋找捷運站</div>
+    <p style="font-size: 0.85rem; color: #7f8c8d; margin-top: 0;">無論在哪裡，點擊自動導航至距離最近的捷運站。</p>
+    <a href="#" id="mrt-link" class="mrt-btn" onclick="findNearestMRT(event)">📍 導航至最近的捷運站</a>
+  </div>
+
+  <!-- 公車區塊 -->
+  <div class="section">
+    <div class="section-title">🚌 我的常用公車</div>
+    <div class="bus-input-group">
+      <input type="text" id="bus-input" class="bus-input" placeholder="輸入公車號碼 (例: 225)">
+      <button class="bus-add-btn" onclick="addBus()">新增</button>
+    </div>
+    <div id="bus-list" class="bus-list">
+      <!-- 公車按鈕會透過 JS 產生在這裡 -->
+    </div>
+  </div>
+
+  <script>
+    // 1. 動態尋找最近捷運站
+    function findNearestMRT(e) {
+      e.preventDefault(); // 阻止原本的超連結跳轉
+      const btn = document.getElementById("mrt-link");
+      btn.innerText = "定位中...";
+
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            // 讓 Google Maps 直接搜尋當前座標附近的「捷運站」
+            const googleMapsUrl = `https://www.google.com/maps/search/捷運站/@${lat},${lon},16z`;
+            btn.innerText = "📍 導航至最近的捷運站";
+            window.open(googleMapsUrl, "_blank");
+          },
+          () => {
+            alert("無法取得定位，將開啟一般地圖搜尋");
+            btn.innerText = "📍 導航至最近的捷運站";
+            window.open("https://www.google.com/maps/search/捷運站", "_blank");
+          },
+          { timeout: 5000 }
+        );
+      } else {
+        alert("您的瀏覽器不支援定位功能");
+      }
+    }
+
+    // 2. 自訂公車清單邏輯
+    let buses = JSON.parse(localStorage.getItem("my_buses")) || ["225", "忠孝幹線"];
+    const busListEl = document.getElementById("bus-list");
+    const busInputEl = document.getElementById("bus-input");
+
+    function renderBuses() {
+      busListEl.innerHTML = "";
+      buses.forEach((bus, index) => {
+        // 大台北公車動態的查詢網址
+        const busUrl = `https://pda.5284.gov.taipei/MQS/businfo1.jsp?routename=${encodeURIComponent(bus)}`;
+        
+        busListEl.innerHTML += `
+          <div class="bus-item">
+            <a href="${busUrl}" target="_blank" style="text-decoration:none; color:inherit; flex-grow:1;">
+              🚌 ${bus}
+            </a>
+            <button class="delete-btn" onclick="deleteBus(${index})">刪除</button>
+          </div>
+        `;
+      });
+    }
+
+    function addBus() {
+      const newBus = busInputEl.value.trim();
+      if (newBus === "") return;
+      if (!buses.includes(newBus)) {
+        buses.push(newBus);
+        localStorage.setItem("my_buses", JSON.stringify(buses));
+        renderBuses();
+      }
+      busInputEl.value = "";
+    }
+
+    function deleteBus(index) {
+      buses.splice(index, 1);
+      localStorage.setItem("my_buses", JSON.stringify(buses));
+      renderBuses();
+    }
+
+    // 初始載入畫面
+    renderBuses();
+  </script>
+</body>
+</html>
